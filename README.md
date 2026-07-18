@@ -143,8 +143,7 @@ IoT | Embedded Systems | Arduino | Smart Safety Projects
 
 <div align="center">
 
-### ⭐ If you like this project, please give it a Star ⭐
+### ⭐ **Made with ❤️ for Road Safety**⭐
 
-**Made with ❤️ for Road Safety**
 
 </div>
