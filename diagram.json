@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "author": "Swathi",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-mpu6050", "id": "mpu", "top": -80, "left": 250, "attrs": {} },
+    { "type": "wokwi-neo6m-gps", "id": "gps", "top": 100, "left": 250, "attrs": {} },
+    { "type": "wokwi-sim800l", "id": "gsm", "top": 250, "left": 250, "attrs": {} },
+    { "type": "wokwi-buzzer", "id": "bz1", "top": -80, "left": 400, "attrs": { "volume": "0.1" } },
+    { "type": "wokwi-led", "id": "led1", "top": 30, "left": 400, "attrs": { "color": "red" } },
+    { "type": "wokwi-pushbutton", "id": "btn1", "top": 120, "left": 400, "attrs": {} },
+    { "type": "wokwi-resistor", "id": "r1", "top": 130, "left": 460, "attrs": { "value": "1000" } }
+  ],
+  "connections": [
+    [ "uno:5V", "mpu:VCC", "red", [] ],
+    [ "uno:GND.1", "mpu:GND", "black", [] ],
+    [ "uno:A4", "mpu:SDA", "green", [] ],
+    [ "uno:A5", "mpu:SCL", "yellow", [] ],
+
+    [ "uno:5V", "gps:VCC", "red", [] ],
+    [ "uno:GND.2", "gps:GND", "black", [] ],
+    [ "gps:TX", "uno:4", "blue", [] ],
+    [ "gps:RX", "uno:3", "orange", [] ],
+
+    [ "uno:5V", "gsm:VCC", "red", [] ],
+    [ "uno:GND.3", "gsm:GND", "black", [] ],
+    [ "gsm:TXD", "uno:7", "blue", [] ],
+    [ "gsm:RXD", "uno:8", "orange", [] ],
+
+    [ "uno:9", "bz1:1", "green", [] ],
+    [ "bz1:2", "uno:GND.1", "black", [] ],
+
+    [ "uno:6", "led1:A", "green", [] ],
+    [ "led1:C", "uno:GND.1", "black", [] ],
+
+    [ "uno:2", "btn1:1.l", "green", [] ],
+    [ "btn1:2.l", "uno:GND.1", "black", [] ]
+  ]
+}

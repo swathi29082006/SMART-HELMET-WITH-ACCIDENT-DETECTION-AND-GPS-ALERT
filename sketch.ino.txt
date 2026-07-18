@@ -1,0 +1,148 @@
+
+#include <Wire.h>
+#include <MPU6050.h>
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
+
+// ---------------- Pin Definitions ----------------
+#define GSM_RX      7      // Arduino RX  <- SIM800L TX
+#define GSM_TX      8      // Arduino TX  -> SIM800L RX
+#define GPS_RX      4      // Arduino RX  <- NEO-6M TX
+#define GPS_TX      3      // Arduino TX  -> NEO-6M RX (usually unused)
+#define BUZZER_PIN  9
+#define LED_PIN     6
+#define BUTTON_PIN  2      // Cancel / panic button (active LOW, INPUT_PULLUP)
+
+// ---------------- Thresholds ----------------
+#define CRASH_THRESHOLD_G   2.5     // total accel (in g) considered a crash
+#define FREE_FALL_THRESHOLD 0.4     // near-zero accel = free fall (helmet dropped/thrown)
+#define CANCEL_WINDOW_MS    10000   // 10 seconds to cancel false alarm
+#define EMERGENCY_NUMBER    "+919999999999"  // <-- change to real contact
+
+// ---------------- Objects ----------------
+MPU6050 mpu;
+SoftwareSerial gsmSerial(GSM_RX, GSM_TX);
+SoftwareSerial gpsSerial(GPS_RX, GPS_TX);
+TinyGPSPlus gps;
+
+bool alertTriggered = false;
+
+void setup() {
+  Serial.begin(9600);
+  gsmSerial.begin(9600);
+  gpsSerial.begin(9600);
+
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  Wire.begin();
+  mpu.initialize();
+
+  Serial.println(F("Smart Helmet - Initializing..."));
+  if (!mpu.testConnection()) {
+    Serial.println(F("MPU6050 connection FAILED"));
+  } else {
+    Serial.println(F("MPU6050 connected OK"));
+  }
+
+  initGSM();
+  Serial.println(F("System ready. Monitoring for crash..."));
+}
+
+void loop() {
+  // Keep GPS buffer fed at all times
+  while (gpsSerial.available() > 0) {
+    gps.encode(gpsSerial.read());
+  }
+
+  float totalG = readTotalAccelG();
+
+  if (!alertTriggered && (totalG > CRASH_THRESHOLD_G || totalG < FREE_FALL_THRESHOLD)) {
+    Serial.print(F("Impact detected! G = "));
+    Serial.println(totalG);
+    handlePossibleCrash();
+  }
+}
+
+// ---------------- Accelerometer ----------------
+float readTotalAccelG() {
+  int16_t ax, ay, az;
+  mpu.getAcceleration(&ax, &ay, &az);
+
+  // Convert raw values to g (MPU6050 default range +/-2g -> 16384 LSB/g)
+  float gx = ax / 16384.0;
+  float gy = ay / 16384.0;
+  float gz = az / 16384.0;
+
+  return sqrt(gx * gx + gy * gy + gz * gz);
+}
+
+// ---------------- Crash Handling ----------------
+void handlePossibleCrash() {
+  alertTriggered = true;
+  digitalWrite(LED_PIN, HIGH);
+
+  unsigned long startTime = millis();
+  bool cancelled = false;
+
+  Serial.println(F("Possible crash! Press button within 10s to cancel."));
+
+  while (millis() - startTime < CANCEL_WINDOW_MS) {
+    tone(BUZZER_PIN, 1000, 200);   // beep pattern
+    delay(300);
+
+    if (digitalRead(BUTTON_PIN) == LOW) {
+      cancelled = true;
+      break;
+    }
+  }
+
+  noTone(BUZZER_PIN);
+  digitalWrite(LED_PIN, LOW);
+
+  if (cancelled) {
+    Serial.println(F("Alert cancelled by rider. False alarm."));
+  } else {
+    Serial.println(F("No response. Sending emergency SMS..."));
+    sendEmergencyAlert();
+  }
+
+  alertTriggered = false;
+}
+
+// ---------------- GSM ----------------
+void initGSM() {
+  gsmSerial.println("AT");
+  delay(1000);
+  gsmSerial.println("AT+CMGF=1");   // Set SMS text mode
+  delay(1000);
+}
+
+void sendEmergencyAlert() {
+  String locationMsg;
+
+  if (gps.location.isValid()) {
+    String mapsLink = "https://maps.google.com/?q=" +
+                       String(gps.location.lat(), 6) + "," +
+                       String(gps.location.lng(), 6);
+    locationMsg = "ACCIDENT DETECTED! Rider needs help. Location: " + mapsLink;
+  } else {
+    locationMsg = "ACCIDENT DETECTED! Rider needs help. GPS location unavailable.";
+  }
+
+  Serial.println(locationMsg);
+
+  gsmSerial.println("AT+CMGF=1");
+  delay(500);
+  gsmSerial.print("AT+CMGS=\"");
+  gsmSerial.print(EMERGENCY_NUMBER);
+  gsmSerial.println("\"");
+  delay(500);
+  gsmSerial.print(locationMsg);
+  delay(500);
+  gsmSerial.write(26); // Ctrl+Z sends the SMS
+  delay(1000);
+
+  Serial.println(F("SMS command sent to GSM module."));
+}
